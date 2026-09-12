@@ -1,0 +1,72 @@
+name: Build Emma Suite
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Java 8 for EmmaBridge
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Build EmmaBridge
+        run: |
+          cd EmmaBridge
+          chmod +x build_unix.sh
+          ./build_unix.sh
+
+      - name: Upload EmmaBridge
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmmaBridge-v0.3
+          path: |
+            EmmaBridge/dist/EmmaBridge.jar
+            EmmaBridge/run_windows.bat
+            EmmaBridge/scripts/EmmaHotkey.ps1
+
+  board:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # El sdkmanager actual requiere JDK 17+.
+      - name: Use Java 17 for Android SDK tools
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 25 and Build Tools 25.0.3
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-25" "build-tools;25.0.3"
+
+      # Compilamos el APK a la antigua: javac + dx + aapt + jarsigner.
+      # Esto evita por completo Gradle/AGP y su resolución de dependencias.
+      - name: Switch to Java 8 for legacy Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Build EmmaBoard manually
+        run: |
+          chmod +x EmmaBoard/build_legacy.sh
+          ./EmmaBoard/build_legacy.sh
+
+      - name: Upload EmmaBoard APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EmmaBoard-v0.3-legacy
+          path: EmmaBoard/build-legacy/out/app-debug.apk
+          if-no-files-found: error
